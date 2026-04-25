@@ -1,10 +1,38 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Title</title>
-</head>
-<body>
+{% extends 'mailing/base.html' %}
 
-</body>
-</html>
+{% block content %}
+<div class="row">
+    <div class="col-md-4">
+        <div class="card text-white bg-primary mb-3">
+            <div class="card-header">Всего рассылок</div>
+            <div class="card-body">
+                <h1 class="card-title">{{ total_mailings }}</h1>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card text-white bg-success mb-3">
+            <div class="card-header">Активных рассылок</div>
+            <div class="card-body">
+                <h1 class="card-title">{{ active_mailings }}</h1>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card text-white bg-info mb-3">
+            <div class="card-header">Уникальных получателей</div>
+            <div class="card-body">
+                <h1 class="card-title">{{ unique_clients }}</h1>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col text-center">
+        <a href="{% url 'mailing:mailing_create' %}" class="btn btn-primary btn-lg">Создать новую рассылку</a>
+    </div>
+</div>
+{% endblock %}
