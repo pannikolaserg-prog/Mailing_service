@@ -1,4 +1,5 @@
 from django import forms
+from django.utils import timezone
 from .models import Client, Message, Mailing
 
 
@@ -19,7 +20,7 @@ class MessageForm(forms.ModelForm):
         fields = ['subject', 'body']
         widgets = {
             'subject': forms.TextInput(attrs={'class': 'form-control'}),
-            'body': forms.Textarea(attrs={'class': 'form-control', 'rows': 10}),
+            'body': forms.Textarea(attrs={'class': 'form-control', 'rows': 5}),
         }
 
 
@@ -28,18 +29,20 @@ class MailingForm(forms.ModelForm):
         model = Mailing
         fields = ['start_time', 'end_time', 'message', 'recipients']
         widgets = {
-            'start_time': forms.DateTimeInput(attrs={'type': 'datetime-local', 'class': 'form-control'}),
-            'end_time': forms.DateTimeInput(attrs={'type': 'datetime-local', 'class': 'form-control'}),
+            'start_time': forms.DateTimeInput(attrs={'class': 'form-control', 'type': 'datetime-local'}),
+            'end_time': forms.DateTimeInput(attrs={'class': 'form-control', 'type': 'datetime-local'}),
             'message': forms.Select(attrs={'class': 'form-control'}),
-            'recipients': forms.SelectMultiple(attrs={'class': 'form-control', 'size': 10}),
+            'recipients': forms.SelectMultiple(attrs={'class': 'form-control'}),
         }
 
     def clean(self):
-        cleaned_data = super().clean()
-        start_time = cleaned_data.get('start_time')
-        end_time = cleaned_data.get('end_time')
+        data = super().clean()
+        start_time = data.get('start_time')
+        end_time = data.get('end_time')
 
-        if start_time and end_time and start_time >= end_time:
-            raise forms.ValidationError('Дата окончания должна быть позже даты начала')
-
-        return cleaned_data
+        if start_time and end_time:
+            if start_time >= end_time:
+                raise forms.ValidationError('Дата начала должна быть раньше даты окончания')
+            if start_time < timezone.now():
+                raise forms.ValidationError('Дата начала не может быть в прошлом')
+        return data

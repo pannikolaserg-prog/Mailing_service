@@ -1,120 +1,90 @@
 from django.db import models
 from django.utils import timezone
-from django.urls import reverse
+from django.contrib.auth import get_user_model
+
+User = get_user_model()
 
 
 class Client(models.Model):
-    """Модель получателя рассылки"""
-    email = models.EmailField(unique=True, verbose_name='Email')
-    full_name = models.CharField(max_length=255, verbose_name='Ф. И. О.')
-    comment = models.TextField(blank=True, verbose_name='Комментарий')
-
-    class Meta:
-        verbose_name = 'Получатель'
-        verbose_name_plural = 'Получатели'
-        ordering = ['full_name']
+    email = models.EmailField(unique=True)
+    full_name = models.CharField(max_length=200)
+    comment = models.TextField(blank=True)
+    owner = models.ForeignKey(User, on_delete=models.CASCADE)
 
     def __str__(self):
-        return f"{self.full_name} <{self.email}>"
-
-    def get_absolute_url(self):
-        return reverse('mailing:client_detail', args=[self.pk])
+        return self.email
 
 
 class Message(models.Model):
-    """Модель сообщения для рассылки"""
-    subject = models.CharField(max_length=255, verbose_name='Тема письма')
-    body = models.TextField(verbose_name='Тело письма')
-
-    class Meta:
-        verbose_name = 'Сообщение'
-        verbose_name_plural = 'Сообщения'
-        ordering = ['subject']
+    subject = models.CharField(max_length=200)
+    body = models.TextField()
+    owner = models.ForeignKey(User, on_delete=models.CASCADE)
 
     def __str__(self):
         return self.subject
 
-    def get_absolute_url(self):
-        return reverse('mailing:message_detail', args=[self.pk])
-
 
 class Mailing(models.Model):
-    """Модель рассылки"""
-    STATUS_CHOICES = [
+    STATUS = [
         ('created', 'Создана'),
         ('started', 'Запущена'),
         ('completed', 'Завершена'),
     ]
 
-    start_time = models.DateTimeField(verbose_name='Дата и время первой отправки')
-    end_time = models.DateTimeField(verbose_name='Дата и время окончания отправки')
-    status = models.CharField(
-        max_length=20,
-        choices=STATUS_CHOICES,
-        default='created',
-        verbose_name='Статус'
-    )
-    message = models.ForeignKey(
-        Message,
-        on_delete=models.CASCADE,
-        related_name='mailings',
-        verbose_name='Сообщение'
-    )
-    recipients = models.ManyToManyField(
-        Client,
-        related_name='mailings',
-        verbose_name='Получатели'
-    )
-
-    class Meta:
-        verbose_name = 'Рассылка'
-        verbose_name_plural = 'Рассылки'
-        ordering = ['-start_time']
-
-    def __str__(self):
-        return f"Рассылка #{self.pk} - {self.message.subject}"
-
-    def get_absolute_url(self):
-        return reverse('mailing:mailing_detail', args=[self.pk])
+    start_time = models.DateTimeField()
+    end_time = models.DateTimeField()
+    status = models.CharField(max_length=20, choices=STATUS, default='created')
+    message = models.ForeignKey(Message, on_delete=models.CASCADE)
+    recipients = models.ManyToManyField(Client)
+    owner = models.ForeignKey(User, on_delete=models.CASCADE)
 
     def update_status(self):
-        """Обновление статуса рассылки на основе текущего времени"""
         now = timezone.now()
-        if self.end_time < now:
-            self.status = 'completed'
-        elif self.status == 'created' and self.start_time <= now:
+        if now < self.start_time:
+            self.status = 'created'
+        elif now <= self.end_time:
             self.status = 'started'
+        else:
+            self.status = 'completed'
         self.save(update_fields=['status'])
+
+    def send_batch(self):
+        from django.core.mail import send_mail
+        from django.conf import settings
+        from .models import Attempt
+
+        attempts = []
+        for client in self.recipients.all():
+            try:
+                send_mail(
+                    self.message.subject,
+                    self.message.body,
+                    settings.DEFAULT_FROM_EMAIL,
+                    [client.email],
+                )
+                attempts.append(Attempt(
+                    mailing=self,
+                    client=client,
+                    status='success',
+                    server_response='OK'
+                ))
+            except Exception as e:
+                attempts.append(Attempt(
+                    mailing=self,
+                    client=client,
+                    status='failed',
+                    server_response=str(e)
+                ))
+
+        # Batch create
+        Attempt.objects.bulk_create(attempts)
+        return len(attempts)
 
 
 class Attempt(models.Model):
-    """Модель попытки рассылки"""
-    STATUS_CHOICES = [
-        ('success', 'Успешно'),
-        ('failure', 'Не успешно'),
-    ]
-
-    attempt_time = models.DateTimeField(
-        auto_now_add=True,
-        verbose_name='Дата и время попытки'
-    )
-    status = models.CharField(
-        max_length=20,
-        choices=STATUS_CHOICES,
-        verbose_name='Статус'
-    )
-    server_response = models.TextField(verbose_name='Ответ почтового сервера')
-    mailing = models.ForeignKey(
-        Mailing,
-        on_delete=models.CASCADE,
-        related_name='attempts',
-        verbose_name='Рассылка'
-    )
-
-    class Meta:
-        verbose_name = 'Попытка рассылки'
-        verbose_name_plural = 'Попытки рассылок'
-        ordering = ['-attempt_time']
-
-    def __str__(self):
-        return f"Попытка #{self.pk} - {self.get_status_display()} - {self.attempt_time}"
+    STATUS = [('success', 'Успешно'), ('failed', 'Ошибка')]
+    attempt_time = models.DateTimeField(auto_now_add=True)
+    status = models.CharField(max_length=20, choices=STATUS)
+    server_response = models.TextField(blank=True)
+    mailing = models.ForeignKey(Mailing, on_delete=models.CASCADE, related_name='attempts')
+    client = models.ForeignKey(Client, on_delete=models.CASCADE, null=True, blank=True,)
