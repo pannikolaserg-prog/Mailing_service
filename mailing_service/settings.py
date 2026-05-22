@@ -3,7 +3,7 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = 'django-insecure-твой-ключ-оставь-как-есть'
+SECRET_KEY = os.getenv('SECRET_KEY')
 
 DEBUG = True  # ← важно!
 
@@ -17,7 +17,21 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'mailing',
+    'django.contrib.sites',
+    'allauth',
+    'allauth.account',
+    'allauth.socialaccount',
+    'allauth.account.middleware.AccountMiddleware',
 ]
+
+# Настройки аутентификации
+AUTHENTICATION_BACKENDS = [
+    'django.contrib.auth.backends.ModelBackend',
+    'allauth.account.auth_backends.AuthenticationBackend',
+]
+
+# Настройки сайта (для allauth)
+SITE_ID = 1
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -81,3 +95,17 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Email для разработки (письма в консоль)
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+
+# Настройки allauth
+ACCOUNT_EMAIL_REQUIRED = True
+ACCOUNT_EMAIL_VERIFICATION = 'mandatory'  # Обязательное подтверждение email
+ACCOUNT_AUTHENTICATION_METHOD = 'username_email'  # Можно входить по username или email
+ACCOUNT_USERNAME_REQUIRED = True
+ACCOUNT_EMAIL_SUBJECT_PREFIX = '[Ваш Сайт] '
+ACCOUNT_CONFIRM_EMAIL_ON_GET = True
+ACCOUNT_LOGIN_ON_EMAIL_CONFIRMATION = True  # Автоматический вход после подтверждения
+ACCOUNT_LOGOUT_ON_GET = True  # Выход через GET запрос
+ACCOUNT_SESSION_REMEMBER = True
+LOGIN_URL = '/accounts/login/'
+LOGIN_REDIRECT_URL = '/'
+LOGOUT_REDIRECT_URL = '/'

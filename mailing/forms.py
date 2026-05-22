@@ -1,4 +1,32 @@
 from django import forms
+from .models import Client, Mailing
+
+
+class ClientForm(forms.ModelForm):
+    class Meta:
+        model = Client
+        fields = ['email', 'full_name', 'comment']
+        widgets = {
+            'email': forms.EmailInput(attrs={'class': 'form-control'}),
+            'full_name': forms.TextInput(attrs={'class': 'form-control'}),
+            'comment': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
+        }
+
+
+class MailingForm(forms.ModelForm):
+    class Meta:
+        model = Mailing
+        fields = ['start_time', 'end_time', 'period', 'message_subject', 'message_body', 'clients']
+        widgets = {
+            'start_time': forms.DateTimeInput(attrs={'class': 'form-control', 'type': 'datetime-local'}),
+            'end_time': forms.DateTimeInput(attrs={'class': 'form-control', 'type': 'datetime-local'}),
+            'period': forms.Select(attrs={'class': 'form-control'}),
+            'message_subject': forms.TextInput(attrs={'class': 'form-control'}),
+            'message_body': forms.Textarea(attrs={'class': 'form-control', 'rows': 5}),
+            'clients': forms.SelectMultiple(attrs={'class': 'form-control'}),
+        }
+        
+from django import forms
 from .models import Client, Message, Mailing
 
 
