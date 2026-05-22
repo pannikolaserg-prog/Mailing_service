@@ -1,7 +1,5 @@
 from django.db import models
 from django.utils import timezone
-from django.core.mail import send_mail
-from django.conf import settings
 from django.contrib.auth import get_user_model
 
 User = get_user_model()
@@ -50,6 +48,38 @@ class Mailing(models.Model):
             self.status = 'completed'
         self.save(update_fields=['status'])
 
+    def send_batch(self):
+        from django.core.mail import send_mail
+        from django.conf import settings
+        from .models import Attempt
+
+        attempts = []
+        for client in self.recipients.all():
+            try:
+                send_mail(
+                    self.message.subject,
+                    self.message.body,
+                    settings.DEFAULT_FROM_EMAIL,
+                    [client.email],
+                )
+                attempts.append(Attempt(
+                    mailing=self,
+                    client=client,
+                    status='success',
+                    server_response='OK'
+                ))
+            except Exception as e:
+                attempts.append(Attempt(
+                    mailing=self,
+                    client=client,
+                    status='failed',
+                    server_response=str(e)
+                ))
+
+        # Batch create
+        Attempt.objects.bulk_create(attempts)
+        return len(attempts)
+
 
 class Attempt(models.Model):
     STATUS = [('success', 'Успешно'), ('failed', 'Ошибка')]
@@ -57,4 +87,4 @@ class Attempt(models.Model):
     status = models.CharField(max_length=20, choices=STATUS)
     server_response = models.TextField(blank=True)
     mailing = models.ForeignKey(Mailing, on_delete=models.CASCADE, related_name='attempts')
-    client = models.ForeignKey(Client, on_delete=models.CASCADE)
+    client = models.ForeignKey(Client, on_delete=models.CASCADE, null=True, blank=True,)
